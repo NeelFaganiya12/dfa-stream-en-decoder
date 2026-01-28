@@ -1,0 +1,434 @@
+#!/usr/bin/env python3    
+ 
+import sys  
+import random
+import collections
+import math
+
+argc = len(sys.argv)
+
+def convert_to_decimal(bits):
+    decimal = ""
+    for i in range(len(bits)-1, -1, -1):
+        decimal += str(bits[i])
+    return int(decimal, 2)
+
+def decimal_to_binary(decimal):
+    str1 = ""
+    while decimal > 0:
+        mod = decimal % 2
+        str1 += str(mod)
+        decimal = decimal // 2
+    return str1[::-1]
+
+#check
+if argc > 2 and sys.argv[1] == "check":
+    dfa_file = sys.argv[2]
+    transitions = []
+    with open(dfa_file, 'r') as file:
+        first_line = True
+        for line in file:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if first_line and len(parts) >= 2:
+                    #first line: total_states and accepting states
+                    total_states = int(parts[0])
+                    #the remaining numbers in first line are state numbers of accepting states
+                    accepting_states = set([int(x) for x in parts[1:]])
+                    first_line = False
+                elif len(parts) == 3:
+                    current_state = int(parts[0])
+                    label = int(parts[1])
+                    next_state = int(parts[2])
+                    #storing the transitions in tuples to use forward
+                    transitions.append((current_state, label, next_state))
+        # print(transitions)
+        std_input = sys.stdin.read()
+        current_state = 0
+        
+        for char in std_input:
+            label = ord(char)
+            flag = False
+            for transition in transitions:
+                #if the current state of the DFA matches the start of transition and lable matches too, we move to next itteration
+                if transition[0] == current_state and transition[1] == label:
+                    current_state = transition[2]
+                    flag = True
+                    break
+            #if the transition was not found, then the flag stays false can we can know that either the label is not present of curent state does not match
+            if not flag:
+                    print("Input rejected by the DFA")
+                    exit()
+        #if all the characters in the input are processed, we check if the last character's state is an accepting state or not
+        if current_state in accepting_states:
+            print("Input accepted by the DFA")
+        else:
+            print("Input rejected by the DFA")
+
+
+#rand
+elif argc > 3 and sys.argv[1] == "rand":
+    dfa_file = sys.argv[2]
+    n = int(sys.argv[3])
+    transitions = []
+    #reading the DFA file and storing transitions in tuples
+    first_line = True
+    with open(dfa_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if first_line and len(parts) >= 2:
+                    total_states = int(parts[0])
+                    accepting_states = set(int(x) for x in parts[1:])
+                    first_line = False
+                elif len(parts) == 3:
+                    current_state = int(parts[0])
+                    label = int(parts[1])
+                    next_state = int(parts[2])
+                    transitions.append((current_state, label, next_state))
+
+        current_state = 0
+
+        for i in range(n):
+            possible_transitions = []
+            #looking at all the outgoing transitions from the current state
+            for t in transitions:
+                if t[0] == current_state:
+                    possible_transitions.append(t)
+
+            
+            #checking if there are any outgoing transitions from the current state, if yes then we choose a random one and print its label
+            if len(possible_transitions) > 0:
+                random_transition = random.choice(possible_transitions)
+                label_at_random = random_transition[1]
+                sys.stdout.buffer.write(bytes([label_at_random]))
+                #updating the current state to the next state of our selected random transition
+                current_state = random_transition[2]
+            else:
+                print (f"Error: No outgoing transition from current state: {current_state}")
+                exit()
+            # sys.stdout.buffer.write(output)
+
+#randacc
+elif argc > 3 and sys.argv[1] == "randacc":
+    dfa_file = sys.argv[2]
+    n = int(sys.argv[3])
+
+    transitions = []
+    #reading the DFA file and storing transitions in tuples
+    first_line = True
+    with open(dfa_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if first_line and len(parts) >= 2:
+                    total_states = int(parts[0])
+                    accepting_states = set(int(x) for x in parts[1:])
+                    first_line = False
+                elif len(parts) == 3:
+                    current_state = int(parts[0])
+                    label = int(parts[1])
+                    next_state = int(parts[2])
+                    transitions.append((current_state, label, next_state))
+
+        current_state = 0
+        output = b""
+        for i in range(n):
+
+            possible_transitions = []
+            #looking at all the outgoing transitions from the current state
+            for t in transitions:
+                if t[0] == current_state:
+                    possible_transitions.append(t)
+            
+
+            # possible_transitions.sort(key=lambda x: (x[1], x[2]), reverse=False)
+            
+            #checking if there are any outgoing transitions from the current state, if yes then we choose a random one and print its label
+            if len(possible_transitions) > 0:
+                random_transition = random.choice(possible_transitions)
+                label_at_random = random_transition[1]
+                output += (bytes([label_at_random]))
+
+                #updating the current state to the next state of our selected random transition
+                current_state = random_transition[2]
+            else:
+                print (f"Error: No outgoing transition from current state: {current_state}")
+                exit()
+        
+
+        #if current state is an acepting state, we output what we have so far
+        if (current_state in accepting_states):
+            sys.stdout.buffer.write(output)
+        else:
+            #breadth first search to accepting state
+            visited = set()
+            parent = {}
+            parent[current_state] = None
+            queue = collections.deque([current_state])
+            accepting_val = None
+            while queue:
+                val = queue.popleft()
+                visited.add(val)
+
+                #we break the loop if we find an accepting state
+                if val in accepting_states:
+                    accepting_val = val
+                    break
+            
+
+                state_transitions = [t for t in transitions if t[0] == val]
+                # state_transitions.sort(key=lambda x: (x[2], x[1]), reverse=False)
+                
+                for transition in state_transitions:
+                    next_val = transition[2]
+                    if next_val not in visited:
+                        visited.add(next_val)
+                        queue.append(next_val)
+                        #storing the parent of the next state and label of transition to keep track of our path
+                        parent[next_val] = (val, transition[1])
+
+            if accepting_val is not None:
+                lab = []
+                check_val = accepting_val
+                #traversing back to the initial state to know the shortest path
+                while parent[check_val] is not None:
+                    prev_val, label_prev = parent[check_val]
+                    lab.append(label_prev)
+                    check_val = prev_val
+                lab.reverse()
+
+                for l in lab:
+                    output += bytes([l])
+                sys.stdout.buffer.write(output)
+            else:
+                sys.stdout.buffer.write(b"Error: No accepting state found")     
+
+#encode
+elif argc > 2 and sys.argv[1] == "encode":
+    dfa_file = sys.argv[2]
+    
+    #reading the DFA file and storing transitions in tuples
+    transitions = []
+    accepting_states = set()
+    first_line = True
+    with open(dfa_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if first_line and len(parts) >= 2:
+                    total_states = int(parts[0])
+                    accepting_states = set(int(x) for x in parts[1:])
+                    first_line = False
+                elif len(parts) == 3:
+                    current_state = int(parts[0])
+                    label = int(parts[1])
+                    next_state = int(parts[2])
+                    transitions.append((current_state, label, next_state))
+    
+    #reading the input from stdin and converting it to a byte stream
+    input_bytes = b""
+    while True:
+        byte = sys.stdin.buffer.read(1)
+        if not byte:
+            break
+        input_bytes += byte
+    
+    #appending a null byte to the input to indicate the end of the input
+    input_bytes += b'\x00'
+    
+    #converting the byte stream to a bit stream
+    bit_stream = []
+    for byte in input_bytes:
+        for i in range(8):
+            bit_stream.append((byte >> i) & 1)
+    
+    #encoding the input using the DFA
+    current_state = 0
+    output = b""
+    bit_index = 0
+    
+    while bit_index < len(bit_stream):
+        #finding all the outgoing possible transitions from current state
+        possible_transitions = []
+        for t in transitions:
+            if t[0] == current_state:
+                possible_transitions.append(t)
+        
+        t = len(possible_transitions)
+        if t == 0:
+            sys.stdout.buffer.write(b"Error: No outgoing transition from current state")
+            sys.exit(1)
+        
+        #b = floor(log2(t))
+        if t == 1:
+            b = 0
+        else:
+            b = int(math.floor(math.log2(t)))
+        
+        #readiing the next b bits from our above bit stream
+        if b == 0:
+            k = 0
+        else:
+            bits = []
+            for i in range(b):
+                if bit_index + i < len(bit_stream):
+                    bits.append(bit_stream[bit_index + i])
+                else:
+                    bits.append(0) #appending 0s at the end when we dont have enough bits to read
+            bit_index += b
+            
+            #converting bits to decimal
+            k = convert_to_decimal(bits)
+        
+        #sorting the possible outgoing transitions by label in decreasing order
+        possible_transitions.sort(key=lambda x: x[1], reverse=True)
+        
+        #if k is greater than number of possible transitions, we module it to get the index of transition we watn to choose (rare case)
+        if k >= t:
+            k = k % t
+        
+        selected_transition = possible_transitions[k]
+        label_byte = selected_transition[1]
+        next_state = selected_transition[2]
+        
+        #outputting the label of selected transition as byte
+        output += bytes([label_byte])
+        current_state = next_state
+    
+    #now we check if the current state is an acceptnig state or not
+    if current_state in accepting_states:
+        sys.stdout.buffer.write(output)
+    else:
+        #using BFS to find shortest path to accepting state
+        visited = set()
+        parent = {}
+        parent[current_state] = None
+        queue = collections.deque([current_state])
+        accepting_state_found = None
+        
+        while queue:
+            state = queue.popleft()
+            
+            if state in accepting_states:
+                accepting_state_found = state
+                break
+            
+            visited.add(state)
+            
+            #finding all outgoing transitions from current state
+            state_transitions = [t for t in transitions if t[0] == state]
+            state_transitions.sort(key=lambda x: (x[2], x[1]), reverse=False)
+            
+
+            #traversing through all outgoing transitions from current state
+            for transition in state_transitions:
+                next_state = transition[2]
+                if next_state not in visited:
+                    visited.add(next_state)
+                    queue.append(next_state)
+                    parent[next_state] = (state, transition[1])
+        
+        if accepting_state_found is not None:
+            #reconstructing the path from accepting state to current state
+            path_labels = []
+            state = accepting_state_found
+            while parent[state] is not None:
+                prev_state, label = parent[state]
+                path_labels.append(label)
+                state = prev_state
+            path_labels.reverse()
+            
+
+            for label in path_labels:
+                output += bytes([label])
+            
+            sys.stdout.buffer.write(output)
+        else:
+            sys.stdout.buffer.write(b"Error: No accepting state found")
+            sys.exit(1) 
+
+
+#decode
+elif argc > 2 and sys.argv[1] == "decode":
+    dfa_file = sys.argv[2]
+    input = sys.stdin.buffer.read()
+    # input = input.encode('utf-8')
+    bit_stream = []
+    transitions = []
+    #reading the DFA file and storing transitions in tuples
+    first_line = True
+    with open(dfa_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if first_line and len(parts) >= 2:
+                    total_states = int(parts[0])
+                    accepting_states = set(int(x) for x in parts[1:])
+                    first_line = False
+                elif len(parts) == 3:
+                    current_state = int(parts[0])
+                    label = int(parts[1])
+                    next_state = int(parts[2])
+                    transitions.append((current_state, label, next_state))
+
+    current_state = 0
+    output = b""
+    for byte in input:
+        # if current_state in accepting_states:
+        #     break
+        possible_transitions = []
+        for t in transitions:
+            if t[0] == current_state:
+                possible_transitions.append(t)
+        len_poss_trans = len(possible_transitions)
+        if len_poss_trans == 0:
+            sys.stdout.buffer.write(b"Error: No outgoing transition from current state")
+            break
+        b = int(math.floor(math.log2(len_poss_trans)))
+        possible_transitions.sort(key=lambda x:x[1], reverse = True)
+        #finding the index of transition with label equal to current byte
+        index = None
+        for i in range(len_poss_trans):
+            if possible_transitions[i][1] == byte:
+                index=i
+                break
+        # print(index)
+        
+        #convert decimal index to binary and append to bit_stream. That bit stream now contains the bits of k in LSB-first order 
+        k = index
+        binary_k = decimal_to_binary(k)
+        while len(binary_k) < b:
+            binary_k = "0" + binary_k
+
+        #LSB-first
+        for bit in reversed(binary_k):
+            bit_stream.append(int(bit))      
+
+        current_state = possible_transitions[index][2]
+    
+    #converting bit_stream to bytes, if bit_stream has < 8 bits we pad it with 0s
+    output = b""
+    for i in range(0, len(bit_stream), 8):
+        byte = 0
+        for j in range(8):
+            if i+j < len(bit_stream):
+                byte |= (int(bit_stream[i+j]) << j)
+            else:
+                byte |= (0 << j)
+        output += bytes([byte])
+
+    #we now append covert data to output until we encounter a 0x00 byte, that we padded during encoding
+    covert_data = b""
+    for byte in output:
+        if byte == 0:
+            break
+        else:
+            covert_data += bytes([byte])
+        
+    sys.stdout.buffer.write(covert_data)
